@@ -7,9 +7,15 @@ const api = require("binance");
 
 const binanceWS = new api.BinanceWS(true);
 
+/* binanceWS.onAllTickers((data) => {
+    console.log(data.length);
+    // io.of("/live-price").emit('tickerUpdate', data['symbol']);
+}); */
+
 io.of("/live-price").on("connection", (socket) => {
 
     binanceWS.onAllTickers((data) => {
+        //console.log(data.length);
         io.of("/live-price").emit('tickerUpdate', data);
     });
 
