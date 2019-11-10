@@ -4,43 +4,107 @@ const port = 3000;
 const http = require("http").createServer();
 const io = require("socket.io")(http);
 const api = require("binance");
-const _array = require('lodash/array');
-const _collection = require('lodash/collection');
+const _ = require('lodash');
 
 const binanceWS = new api.BinanceWS(true);
 
-binanceWS.onAllTickers((data) => {
+var tickerDataHistoryAsset = [];
+
+binanceWS.onAllTickers((tickerData) => {
+    /** result output */
+    var livePriceOutput = [];
+
     /** get from DB */
     var livePriceAssetsInfo = [
         {
             "asset": "btc",
-            "market": "btcusdt",
-            "market_unit": "usdt"
+            "price_symbol": "btcusdt",
+            "price_symbol_unit": "usdt"
         },
         {
             "asset": "bnb",
-            "market": "bnbbtc",
-            "market_unit": "btc"
+            "price_symbol": "bnbbtc",
+            "price_symbol_unit": "btc"
+        },
+        {
+            "asset": "trx",
+            "price_symbol": "trxusdt",
+            "price_symbol_unit": "usdt"
         },
         {
             "asset": "qkc",
-            "market": "qkcbtc",
-            "market_unit": "btc"
+            "price_symbol": "qkcbtc",
+            "price_symbol_unit": "btc"
         }
     ];
 
+    tickerDataBTC = _.find(tickerData, function (dataItem) {
+        return "BTCUSDT" == dataItem.symbol;
+    });
+
+    if (_.isNil(tickerDataBTC)) {
+        tickerDataBTC = tickerDataHistoryAsset['btc'][1];
+    }
+
+    if (!_.isNil(tickerDataHistoryAsset['btc']) && tickerDataHistoryAsset['btc'].length >= 2) {
+        tickerDataHistoryAsset['btc'].shift();
+        tickerDataHistoryAsset['btc'].push(tickerDataBTC);
+    } else {
+        tickerDataHistoryAsset['btc'] = [];
+        tickerDataHistoryAsset['btc'].push(tickerDataBTC, tickerDataBTC);
+    }
+
+    console.log(tickerDataHistoryAsset);
+
+    livePriceAssetsInfo.forEach(item => {
+        var tickerDataAsset = _.find(tickerData, function (tickerDataItem) {
+            return item.price_symbol.toUpperCase() == tickerDataItem.symbol;
+        });
+
+        if (_.isNil(tickerDataAsset)) {
+            tickerDataAsset = tickerDataHistoryAsset[item.asset][1];
+        }
+
+        if (!_.isNil(tickerDataHistoryAsset[item.asset]) && tickerDataHistoryAsset[item.asset].length >= 2) {
+            tickerDataHistoryAsset[item.asset].shift();
+            tickerDataHistoryAsset[item.asset].push(tickerDataAsset);
+        } else {
+            tickerDataHistoryAsset[item.asset] = [];
+            tickerDataHistoryAsset[item.asset].push(tickerDataAsset, tickerDataAsset);
+        }
+
+        if (!_.isNil(tickerDataAsset)) {
+            var price_in_usdt = item.price_symbol_unit == "usdt" ? tickerDataAsset.currentClose : tickerDataAsset.currentClose * tickerDataBTC.currentClose;
+            var object = {
+                asset: item.asset,
+                price_in_usdt: price_in_usdt.toString(),
+                buy_in_rial: '',
+                sell_in_rial: '',
+                status: '',
+                change_percent: tickerDataAsset.priceChangePercent
+            }
+            livePriceOutput.push(object);
+        }
+
+    });
+
+    // console.log(livePriceOutput);
+
+
+    /*
     // make array of markets for live price
-    var livePriceAssetsInfoMarkets = livePriceAssetsInfo.map(function (el) { return el.market.toUpperCase(); });
+     var livePriceAssetsInfoMarkets = livePriceAssetsInfo.map(function (item) { return item.price_symbol.toUpperCase(); });
+    var livePriceAssets = livePriceAssetsInfo.map(function (item) { return item.asset.toUpperCase(); });
 
     // get only needed results from binance
-    var results = _collection.filter(data, function (item) {
+    var results = _.filter(data, function (item) {
         if (livePriceAssetsInfoMarkets.includes(item.symbol)) {
             var livePriceAssetsInfoObj = livePriceAssetsInfo.find(obj => {
-                objMarket = obj.market.toUpperCase();
+                objMarket = obj.price_symbol.toUpperCase();
                 return objMarket === item.symbol;
             });
             item.asset = livePriceAssetsInfoObj.asset.toUpperCase();
-            item.market_unit = livePriceAssetsInfoObj.market_unit.toUpperCase();
+            item.market_unit = livePriceAssetsInfoObj.price_symbol_unit.toUpperCase();
             return true;
         } else {
             return false;
@@ -52,7 +116,8 @@ binanceWS.onAllTickers((data) => {
     results.forEach(element => {
         str += `| ${element.asset} : ${element.currentClose} (${element.market_unit}) |`;
     });
-    console.log(str);
+    console.log(str); 
+    */
 });
 
 /* binanceWS.onTicker("BTCUSDT", (data) => {
