@@ -5,16 +5,12 @@ class Exchange {
         this.operator = operator;
     }
 
-    getCoinsPrices() {
-        return "get coins prices";
+    getLastCoinsPrices() {
+        this.operator.getLastCoinsPrices();
     }
 
-    getCoins() {
-        return "get coins";
-    }
-
-    getMarkets() {
-        return "get markets";
+    getLiveCoinsPrices() {
+        this.operator.getLiveCoinsPrices();
     }
 
     socketCoinsLivePrices() {
