@@ -8,31 +8,5 @@ const _ = require('lodash');
 const Exchange = require("./modules/Exchange");
 const BinanceEx = require("./modules/BinanceEx");
 
-var binanceEx = new BinanceEx;
-var result = binanceEx.socketCoinsLivePrices();
-// console.log(result.then(x => { console.log(x) }));
-
-
-/* var exchange = new Exchange;
-var x = exchange.getRialMarketInfo();
-x.then(result => {
-    console.log(result);
-}); */
-
-/* 
-io.of("/live-price").on("connection", (socket) => {
-    binanceWS.onAllTickers((data) => {
-        io.of("/live-price").emit('tickerUpdate', data);
-
-        var results = _.filter(data, function (item) {
-            return item.VAL.indexOf("BTC") > -1 || item.VAL.indexOf("USDT") > -1;
-        });
-
-        console.log(results);
-    });
-}); 
-*/
-
-http.listen(port, () => {
-    console.log("Server is listening on 127.0.0.1:" + port);
-});
+var exchange = new Exchange(new BinanceEx);
+exchange.socketCoinsLivePrices(9000, 'live-price');

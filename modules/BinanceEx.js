@@ -1,4 +1,7 @@
 const BinanceApi = require("./binance/lib/binance");
+const request = require('request');
+const http = require("http").createServer();
+const io = require("socket.io")(http);
 const _ = require('lodash');
 const binanceWS = new BinanceApi.BinanceWS(true);
 const binanceRest = new BinanceApi.BinanceRest({
@@ -46,65 +49,116 @@ class BinanceEx {
         });
     }
 
-    socketCoinsLivePrices() {
+    socketCoinsLivePrices(port, domain) {
 
-        var assetsInfo = this.getAssetsInfo();
-        var assetPriceHistory = [];
+        http.listen(port, () => {
+            console.log("Server is listening on 127.0.0.1:" + port);
+        });
 
-        this.getCoinsLastPrices().then(function (coinsLastPricesResult) {
+        io.of("/" + domain).on("connection", (socket) => {
 
-            binanceWS.onAllTickers((tickerData) => {
+            var assetsInfo = this.getAssetsInfo();
+            var assetPriceHistory = [];
 
-                var output = [];
+            var coinsLastPrices = this.getCoinsLastPrices();
+            var rialMarketInfo = this.getRialMarketInfo();
 
-                assetsInfo.forEach(assetItem => {
-                    var dataAsset = _.find(tickerData, function (tickerItem) {
-                        return assetItem.price_symbol == tickerItem.symbol;
-                    });
+            Promise.all([coinsLastPrices, rialMarketInfo]).then(promiseResults => {
+                var coinsLastPricesResult = promiseResults[0];
+                var rialMarketInfo = promiseResults[1];
 
-                    if (_.isNil(dataAsset)) {
-                        var dataAsset = _.find(coinsLastPricesResult, function (coinItem) {
-                            return assetItem.asset == coinItem.asset;
+                binanceWS.onAllTickers((tickerData) => {
+                    var output = [];
+                    assetsInfo.forEach(assetItem => {
+                        var dataAsset = _.find(tickerData, function (tickerItem) {
+                            return assetItem.price_symbol == tickerItem.symbol;
                         });
 
-                        var price_in_usdt = dataAsset.price_in_usdt;
-                        var price_in_btc = dataAsset.price_in_btc;
-                    } else {
-                        var dataBTC = _.find(coinsLastPricesResult, function (coinItem) {
-                            return "BTC" == coinItem.asset;
+                        if (_.isNil(dataAsset)) {
+                            var dataAsset = _.find(coinsLastPricesResult, function (coinItem) {
+                                return assetItem.asset == coinItem.asset;
+                            });
+
+                            var price_in_usdt = dataAsset.price_in_usdt;
+                            var price_in_btc = dataAsset.price_in_btc;
+                        } else {
+                            var dataBTC = _.find(coinsLastPricesResult, function (coinItem) {
+                                return "BTC" == coinItem.asset;
+                            });
+
+                            var price_in_usdt = assetItem.price_symbol_unit == "USDT" ? dataAsset.currentClose : dataAsset.currentClose * dataBTC.price_in_usdt;
+                            var price_in_btc = assetItem.price_symbol_unit == "BTC" ? dataAsset.currentClose : dataAsset.currentClose / dataBTC.price_in_usdt;
+                        }
+
+                        if (!_.isNil(assetPriceHistory[assetItem.asset]) && assetPriceHistory[assetItem.asset].length >= 2) {
+                            assetPriceHistory[assetItem.asset].shift();
+                            assetPriceHistory[assetItem.asset].push(price_in_usdt);
+                        } else {
+                            assetPriceHistory[assetItem.asset] = [];
+                            assetPriceHistory[assetItem.asset].push(price_in_usdt, price_in_usdt);
+                        }
+
+                        var priceStatus = "";
+                        if (assetPriceHistory[assetItem.asset][1] > assetPriceHistory[assetItem.asset][0]) {
+                            priceStatus = "positive";
+                        } else {
+                            priceStatus = "negative";
+                        }
+
+                        var usdt_in_rial_for_buy_coin = '';
+                        var usdt_in_rial_for_sell_coin = '';
+
+                        var price_buy_in_rial = '';
+                        var price_sell_in_rial = '';
+
+                        if (assetItem.asset == "USDT") {
+                            var price_buy_in_rial = rialMarketInfo.price['orig-buy-price'];
+                            var price_sell_in_rial = rialMarketInfo.price['orig-sell-price'];
+                        } else {
+                            var usdt_in_rial_for_buy_coin = rialMarketInfo.price['orig-buy-price'] + rialMarketInfo.price['orig-buy-price'] * rialMarketInfo.fee.sell[assetItem.group] / 100;
+                            var usdt_in_rial_for_sell_coin = rialMarketInfo.price['orig-buy-price'] - rialMarketInfo.price['orig-buy-price'] * rialMarketInfo.fee.sell[assetItem.group] / 100;
+                            var price_buy_in_rial = price_in_usdt * usdt_in_rial_for_buy_coin;
+                            var price_sell_in_rial = price_in_usdt * usdt_in_rial_for_sell_coin;
+                        }
+
+                        output.push({
+                            "asset": assetItem.asset,
+                            "price_symbol": assetItem.price_symbol,
+                            "price_symbol_unit": assetItem.price_symbol_unit,
+                            "price_in_usdt": price_in_usdt.toString(),
+                            "price_in_btc": price_in_btc.toString(),
+                            "price_buy_in_rial": price_buy_in_rial.toString(),
+                            "price_sell_in_rial": price_sell_in_rial.toString(),
+                            "price_status": priceStatus
                         });
 
-                        var price_in_usdt = assetItem.price_symbol_unit == "USDT" ? dataAsset.currentClose : dataAsset.currentClose * dataBTC.price_in_usdt;
-                        var price_in_btc = assetItem.price_symbol_unit == "BTC" ? dataAsset.currentClose : dataAsset.currentClose / dataBTC.price_in_usdt;
-                    }
-
-                    if (!_.isNil(assetPriceHistory[assetItem.asset]) && assetPriceHistory[assetItem.asset].length >= 2) {
-                        assetPriceHistory[assetItem.asset].shift();
-                        assetPriceHistory[assetItem.asset].push(price_in_usdt);
-                    } else {
-                        assetPriceHistory[assetItem.asset] = [];
-                        assetPriceHistory[assetItem.asset].push(price_in_usdt, price_in_usdt);
-                    }
-
-                    var priceStatus = "";
-                    if (assetPriceHistory[assetItem.asset][1] > assetPriceHistory[assetItem.asset][0]) {
-                        priceStatus = "positive";
-                    } else {
-                        priceStatus = "negative";
-                    }
-
-                    output.push({
-                        "asset": assetItem.asset,
-                        "price_symbol": assetItem.price_symbol,
-                        "price_symbol_unit": assetItem.price_symbol_unit,
-                        "price_in_usdt": price_in_usdt.toString(),
-                        "price_in_btc": price_in_btc.toString(),
-                        "price_status": priceStatus
+                        // console.log(output);
+                        io.of("/" + domain).emit('tickerUpdate', output);
                     });
-
-                    console.log(output);
-
                 });
+            }).catch(err => {
+                console.log(err);
+            });
+
+        });
+    }
+
+    getRialMarketInfo() {
+        const options = {
+            url: 'http://94.130.10.13:8000/',
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Accept-Charset': 'utf-8'
+            }
+        };
+
+        return new Promise(function (resolve, reject) {
+            request(options, function (err, res, body) {
+                let json = JSON.parse(body);
+                json.fee.buy.D = '0';
+                json.fee.sell.D = '0';
+                resolve(json);
             });
         });
     }
