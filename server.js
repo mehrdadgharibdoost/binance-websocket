@@ -10,8 +10,17 @@ const BinanceEx = require("./modules/BinanceEx");
 
 var binanceEx = new BinanceEx;
 var result = binanceEx.socketCoinsLivePrices();
+// console.log(result.then(x => { console.log(x) }));
 
-/* io.of("/live-price").on("connection", (socket) => {
+
+/* var exchange = new Exchange;
+var x = exchange.getRialMarketInfo();
+x.then(result => {
+    console.log(result);
+}); */
+
+/* 
+io.of("/live-price").on("connection", (socket) => {
     binanceWS.onAllTickers((data) => {
         io.of("/live-price").emit('tickerUpdate', data);
 
@@ -21,7 +30,8 @@ var result = binanceEx.socketCoinsLivePrices();
 
         console.log(results);
     });
-}); */
+}); 
+*/
 
 http.listen(port, () => {
     console.log("Server is listening on 127.0.0.1:" + port);

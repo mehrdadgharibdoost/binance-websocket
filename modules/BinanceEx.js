@@ -12,7 +12,7 @@ const binanceRest = new BinanceApi.BinanceRest({
 
 class BinanceEx {
 
-    getLiveCoinsPrices() {
+    getCoinsLastPrices() {
 
         var output = [];
         var tickerPrice = binanceRest.tickerPrice();
@@ -48,62 +48,63 @@ class BinanceEx {
 
     socketCoinsLivePrices() {
 
-        var output = [];
         var assetsInfo = this.getAssetsInfo();
+        var assetPriceHistory = [];
 
-        this.getLiveCoinsPrices().then(function (liveCoinsPricesResult) {
+        this.getCoinsLastPrices().then(function (coinsLastPricesResult) {
 
             binanceWS.onAllTickers((tickerData) => {
 
-                tickerDataBTC = _.find(tickerData, function (dataItem) {
-                    return "BTCUSDT" == dataItem.symbol;
-                });
+                var output = [];
 
-                if (_.isNil(tickerDataBTC)) {
-                    tickerDataBTC = tickerDataHistoryAsset['btc'][1];
-                }
-                /*
-                                if (!_.isNil(tickerDataHistoryAsset['btc']) && tickerDataHistoryAsset['btc'].length >= 2) {
-                                    tickerDataHistoryAsset['btc'].shift();
-                                    tickerDataHistoryAsset['btc'].push(tickerDataBTC);
-                                } else {
-                                    tickerDataHistoryAsset['btc'] = [];
-                                    tickerDataHistoryAsset['btc'].push(tickerDataBTC, tickerDataBTC);
-                                }
-                
-                                console.log(tickerDataHistoryAsset);
-                
-                                livePriceAssetsInfo.forEach(item => {
-                                    var tickerDataAsset = _.find(tickerData, function (tickerDataItem) {
-                                        return item.price_symbol.toUpperCase() == tickerDataItem.symbol;
-                                    });
-                
-                                    if (_.isNil(tickerDataAsset)) {
-                                        tickerDataAsset = tickerDataHistoryAsset[item.asset][1];
-                                    }
-                
-                                    if (!_.isNil(tickerDataHistoryAsset[item.asset]) && tickerDataHistoryAsset[item.asset].length >= 2) {
-                                        tickerDataHistoryAsset[item.asset].shift();
-                                        tickerDataHistoryAsset[item.asset].push(tickerDataAsset);
-                                    } else {
-                                        tickerDataHistoryAsset[item.asset] = [];
-                                        tickerDataHistoryAsset[item.asset].push(tickerDataAsset, tickerDataAsset);
-                                    }
-                
-                                    if (!_.isNil(tickerDataAsset)) {
-                                        var price_in_usdt = item.price_symbol_unit == "usdt" ? tickerDataAsset.currentClose : tickerDataAsset.currentClose * tickerDataBTC.currentClose;
-                                        var object = {
-                                            asset: item.asset,
-                                            price_in_usdt: price_in_usdt.toString(),
-                                            buy_in_rial: '',
-                                            sell_in_rial: '',
-                                            status: '',
-                                            change_percent: tickerDataAsset.priceChangePercent
-                                        }
-                                        livePriceOutput.push(object);
-                                    }
-                
-                                }); */
+                assetsInfo.forEach(assetItem => {
+                    var dataAsset = _.find(tickerData, function (tickerItem) {
+                        return assetItem.price_symbol == tickerItem.symbol;
+                    });
+
+                    if (_.isNil(dataAsset)) {
+                        var dataAsset = _.find(coinsLastPricesResult, function (coinItem) {
+                            return assetItem.asset == coinItem.asset;
+                        });
+
+                        var price_in_usdt = dataAsset.price_in_usdt;
+                        var price_in_btc = dataAsset.price_in_btc;
+                    } else {
+                        var dataBTC = _.find(coinsLastPricesResult, function (coinItem) {
+                            return "BTC" == coinItem.asset;
+                        });
+
+                        var price_in_usdt = assetItem.price_symbol_unit == "USDT" ? dataAsset.currentClose : dataAsset.currentClose * dataBTC.price_in_usdt;
+                        var price_in_btc = assetItem.price_symbol_unit == "BTC" ? dataAsset.currentClose : dataAsset.currentClose / dataBTC.price_in_usdt;
+                    }
+
+                    if (!_.isNil(assetPriceHistory[assetItem.asset]) && assetPriceHistory[assetItem.asset].length >= 2) {
+                        assetPriceHistory[assetItem.asset].shift();
+                        assetPriceHistory[assetItem.asset].push(price_in_usdt);
+                    } else {
+                        assetPriceHistory[assetItem.asset] = [];
+                        assetPriceHistory[assetItem.asset].push(price_in_usdt, price_in_usdt);
+                    }
+
+                    var priceStatus = "";
+                    if (assetPriceHistory[assetItem.asset][1] > assetPriceHistory[assetItem.asset][0]) {
+                        priceStatus = "positive";
+                    } else {
+                        priceStatus = "negative";
+                    }
+
+                    output.push({
+                        "asset": assetItem.asset,
+                        "price_symbol": assetItem.price_symbol,
+                        "price_symbol_unit": assetItem.price_symbol_unit,
+                        "price_in_usdt": price_in_usdt.toString(),
+                        "price_in_btc": price_in_btc.toString(),
+                        "price_status": priceStatus
+                    });
+
+                    console.log(output);
+
+                });
             });
         });
     }
@@ -114,26 +115,37 @@ class BinanceEx {
                 "asset": "BTC",
                 "price_symbol": "BTCUSDT",
                 "price_symbol_unit": "USDT",
+                "group": "A"
             },
             {
                 "asset": "BNB",
                 "price_symbol": "BNBUSDT",
-                "price_symbol_unit": "USDT"
+                "price_symbol_unit": "USDT",
+                "group": "B"
             },
             {
                 "asset": "TRX",
                 "price_symbol": "TRXBTC",
-                "price_symbol_unit": "BTC"
+                "price_symbol_unit": "BTC",
+                "group": "C"
             },
             {
                 "asset": "XRP",
                 "price_symbol": "XRPBTC",
-                "price_symbol_unit": "BTC"
+                "price_symbol_unit": "BTC",
+                "group": "D"
             },
             {
                 "asset": "LTC",
                 "price_symbol": "LTCBTC",
-                "price_symbol_unit": "BTC"
+                "price_symbol_unit": "BTC",
+                "group": "D"
+            },
+            {
+                "asset": "QKC",
+                "price_symbol": "QKCBTC",
+                "price_symbol_unit": "BTC",
+                "group": "C"
             }
         ];
     }
