@@ -26,10 +26,7 @@ const webpackConfig = {
         test: /\.js$/,
         exclude: /(node_modules|server.js|app.js|index.js)/,
         use: {
-          loader: "babel-loader",
-          options: {
-            presets: ["@babel/core"]
-          }
+          loader: "babel-loader"
         }
       }
     ]
