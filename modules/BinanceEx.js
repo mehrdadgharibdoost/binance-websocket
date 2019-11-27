@@ -27,6 +27,8 @@ class BinanceEx {
                     return "BTCUSDT" == resultItem.symbol;
                 });
 
+                // !!result && reject();
+
                 assetsInfo.forEach(assetItem => {
                     var dataAsset = _.find(result, function (resultItem) {
                         return assetItem.price_symbol == resultItem.symbol;
@@ -56,6 +58,11 @@ class BinanceEx {
         });
 
         io.of("/" + domain).on("connection", (socket) => {
+            console.log('Client connected');
+
+            socket.on('disconnect', reason => {
+                console.log('Client disconnected');
+              });
 
             var assetsInfo = this.getAssetsInfo();
             var assetPriceHistory = [];
@@ -137,7 +144,7 @@ class BinanceEx {
                     });
                 });
             }).catch(err => {
-                console.log(err);
+                console.log('Promise.all',err);
             });
 
         });
@@ -159,6 +166,7 @@ class BinanceEx {
                 json.fee.buy.D = '0';
                 json.fee.sell.D = '0';
                 resolve(json);
+                err && reject(err);
             });
         });
     }
